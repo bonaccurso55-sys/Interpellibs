@@ -1,0 +1,36 @@
+name: Monitoraggio Interpelli Brescia
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'  # Esegue lo script ogni 5 minuti
+  workflow_dispatch:        # Permette di avviarlo manualmente da GitHub per testare
+
+jobs:
+  check-website:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout del codice
+        uses: actions/checkout@v4
+
+      - name: Configurazione Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Installazione dipendenze
+        run: |
+          pip install -r requirements.txt
+
+      - name: Esecuzione dello script
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          CHANNEL_ID: ${{ secrets.CHANNEL_ID }}
+        run: python bot_interpelli.py
+
+      - name: Salva cronologia visti
+        run: |
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+          git add interpelli_brescia.json
+          git diff --quiet && git diff --staged --quiet || (git commit -m "Aggiornato registro interpelli [skip ci]" && git push)
