@@ -37,8 +37,10 @@ def carica_visti():
 
 
 def salva_visti(visti):
+    # Converte il set in lista e tiene solo gli ultimi 200 elementi
+    lista_visti = list(visti)[-200:]
     with open(DB_FILE, "w", encoding="utf-8") as f:
-        json.dump(list(visti), f, ensure_ascii=False, indent=2)
+        json.dump(lista_visti, f, ensure_ascii=False, indent=2)
 
 
 def controlla_interpelli():
