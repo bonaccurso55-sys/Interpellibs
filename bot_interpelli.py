@@ -37,7 +37,6 @@ def carica_visti():
 
 
 def salva_visti(visti):
-    # Converte il set in lista e tiene solo gli ultimi 200 elementi
     lista_visti = list(visti)[-200:]
     with open(DB_FILE, "w", encoding="utf-8") as f:
         json.dump(lista_visti, f, ensure_ascii=False, indent=2)
@@ -59,11 +58,35 @@ def controlla_interpelli():
         return
 
     soup = BeautifulSoup(response.text, "html.parser")
-    link_elementi = soup.find_all("a", href=True)
+
+    # Cerca i blocchi che contengono i singoli post
+    blocchi = soup.find_all(
+        ["article", "div"],
+        class_=lambda c: c
+        and any(
+            x in c for x in ["asset-abstract", "journal-content-article", "post"]
+        ),
+    )
+
+    # Se la ricerca per classe fallisce, usa una ricerca basata sui link di titolo
+    if not blocchi:
+        blocchi = [
+            a.find_parent(["article", "div"])
+            for a in soup.find_all("a", href=True)
+            if ("/web/brescia/" in a["href"] or "documents/" in a["href"])
+            and len(a.get_text(strip=True)) > 10
+        ]
 
     nuovi_interpelli = []
 
-    for a in link_elementi:
+    for blocco in blocchi:
+        if not blocco:
+            continue
+
+        a = blocco.find("a", href=True)
+        if not a:
+            continue
+
         href = a["href"].strip()
         titolo = a.get_text(strip=True)
 
@@ -76,14 +99,29 @@ def controlla_interpelli():
                 else href
             )
 
+            # Estrai la descrizione (il testo nei paragrafi <p> del blocco)
+            paragrafi = blocco.find_all("p")
+            descrizione = " ".join([p.get_text(strip=True) for p in paragrafi])
+
+            # Se non trova paragrafi <p>, prende il testo visibile esclusi i titoli
+            if not descrizione:
+                descrizione = blocco.get_text(separator=" ", strip=True).replace(
+                    titolo, ""
+                )
+
             if url_completo not in visti:
-                nuovi_interpelli.append((titolo, url_completo))
+                nuovi_interpelli.append((titolo, descrizione, url_completo))
 
     nuovi_inviati = False
-    for titolo, url in reversed(nuovi_interpelli):
+    for titolo, descrizione, url in reversed(nuovi_interpelli):
+        testo_descrizione = (
+            f"\n\n📝 <i>{descrizione}</i>" if descrizione else ""
+        )
+
         messaggio = (
             f"🚨 <b>NUOVO INTERPELLO - UST BRESCIA</b>\n\n"
-            f"📌 <b>{titolo}</b>\n\n"
+            f"📌 <b>{titolo}</b>"
+            f"{testo_descrizione}\n\n"
             f"🔗 <a href='{url}'>Visualizza Avviso / Allegato</a>"
         )
 
