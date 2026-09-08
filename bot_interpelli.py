@@ -37,7 +37,8 @@ def carica_visti():
 
 
 def salva_visti(visti):
-    lista_visti = list(visti)[-200:]
+    # Salviamo fino a 1000 elementi per sicurezza
+    lista_visti = list(visti)[-1000:]
     with open(DB_FILE, "w", encoding="utf-8") as f:
         json.dump(lista_visti, f, ensure_ascii=False, indent=2)
 
@@ -66,20 +67,25 @@ def controlla_interpelli():
         href = a["href"].strip()
         titolo = a.get_text(strip=True)
 
-        # REGOLE DI FILTRO OTTIMIZZATE PER IL SITO MIM:
-        # Cerca link con '/-/' (articoli ufficiali) oppure allegati/documenti con titolo significativo
-        e_articolo_interpello = "/-/" in href or "documents/" in href
-        e_link_brescia = "/web/brescia/" in href or href.startswith("http")
+        # REGOLE RIGIDE ANTI-DUPLICATI:
+        # Prende SOLO i link che sono effettivi articoli di interpello o documenti PDF allegati
+        e_interpello = (
+            "/web/brescia/-/avviso-di-interpello" in href
+            or "interpello" in href.lower()
+            or "documents/" in href
+        )
 
-        if e_articolo_interpello and e_link_brescia and len(titolo) > 8:
+        if e_interpello and len(titolo) > 10:
 
             # Costruisci URL assoluto
             if href.startswith("/"):
                 url_completo = f"https://www.mim.gov.it{href}"
-            else:
+            elif href.startswith("http"):
                 url_completo = href
+            else:
+                continue
 
-            # Cerca la descrizione nel blocco HTML circostante
+            # Estrai solo il testo della descrizione pulito dal blocco genitore
             blocco = a.find_parent(["article", "div", "li"])
             descrizione = ""
             if blocco:
@@ -88,12 +94,12 @@ def controlla_interpelli():
                     [p.get_text(strip=True) for p in paragrafi]
                 )
 
-                # Se non trova <p>, estrae il testo del blocco pulendolo dal titolo
                 if not descrizione:
                     descrizione = blocco.get_text(
                         separator=" ", strip=True
                     ).replace(titolo, "")
 
+            # Controlla se il link è già stato notificato
             if url_completo not in visti:
                 nuovi_interpelli.append((titolo, descrizione, url_completo))
 
